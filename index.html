@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Inventario PRO</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome para Íconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Estilos personalizados para suavizar animaciones y scroll */
+        html { scroll-behavior: smooth; }
+        .sidebar-transition { transition: transform 0.3s ease-in-out; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Scrollbar estilizado */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans h-screen flex overflow-hidden">
+
+    <!-- Notificaciones (Toast) -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform transition-all duration-300 translate-x-full opacity-0 bg-green-500 text-white px-6 py-3 rounded shadow-lg flex items-center gap-3">
+        <i class="fas fa-check-circle"></i>
+        <span id="toast-msg">Acción exitosa</span>
+    </div>
+
+    <!-- Menú Lateral (Sidebar) -->
+    <aside id="sidebar" class="bg-slate-900 text-white w-64 flex-shrink-0 h-full fixed md:relative z-40 sidebar-transition -translate-x-full md:translate-x-0 shadow-xl flex flex-col">
+        <div class="p-5 flex items-center justify-between border-b border-slate-700">
+            <h1 class="text-xl font-bold tracking-wider flex items-center gap-2">
+                <i class="fas fa-boxes text-blue-400"></i> INVENTARIO
+            </h1>
+            <button onclick="toggleSidebar()" class="md:hidden text-gray-300 hover:text-white">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 mt-4">Vistas Principales</p>
+            <button onclick="navigate('stock')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg transition-colors text-left" id="nav-stock">
+                <i class="fas fa-warehouse w-5 text-center"></i> Ver Inventario
+            </button>
+            <button onclick="navigate('add-product')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded-lg transition-colors text-left text-slate-300" id="nav-add-product">
+                <i class="fas fa-plus-circle w-5 text-center"></i> Agregar Producto
+            </button>
+            <button onclick="navigate('movements')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded-lg transition-colors text-left text-slate-300" id="nav-movements">
+                <i class="fas fa-exchange-alt w-5 text-center"></i> Entradas / Salidas
+            </button>
+        </nav>
+        <div class="p-4 border-t border-slate-700 text-xs text-slate-400 text-center">
+            Sistema Local v1.0
+        </div>
+    </aside>
+
+    <!-- Overlay para móvil -->
+    <div id="mobile-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 flex flex-col h-full w-full overflow-hidden">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b px-6 py-4 flex items-center justify-between z-10">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="text-gray-600 hover:text-blue-600 focus:outline-none md:hidden">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+                <h2 id="view-title" class="text-2xl font-bold text-gray-800">Panel de Control</h2>
+            </div>
+        </header>
+
+        <!-- Contenedor de Vistas -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 relative">
+
+            <!-- VISTA: INVENTARIO (STOCK) -->
+            <div id="view-stock" class="view-section fade-in">
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded shadow-sm text-sm text-blue-800">
+                    <i class="fas fa-info-circle mr-2"></i> Aquí puedes ver todos tus productos registrados. El stock se calcula automáticamente sumando el stock inicial y los movimientos (entradas y salidas).
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <div class="p-4 border-b flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div class="relative w-full md:w-96">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                            <input type="text" id="search-stock" onkeyup="renderStock()" placeholder="Buscar por SKU, Nombre o Marca..." class="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <button onclick="navigate('add-product')" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm">
+                            <i class="fas fa-plus mr-2"></i> Nuevo Producto
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="bg-gray-50 text-gray-600">
+                                <tr>
+                                    <th class="px-6 py-3 font-semibold">SKU / Producto</th>
+                                    <th class="px-6 py-3 font-semibold text-center">Stock Actual</th>
+                                    <th class="px-6 py-3 font-semibold">Costo Total</th>
+                                    <th class="px-6 py-3 font-semibold">Precio Final</th>
+                                    <th class="px-6 py-3 font-semibold text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-table-body" class="divide-y divide-gray-100">
+                                <!-- Filas generadas por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="stock-empty" class="hidden p-10 text-center text-gray-500">
+                        <i class="fas fa-box-open text-4xl mb-3 text-gray-300"></i>
+                        <p>No hay productos registrados o no coinciden con la búsqueda.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA: AGREGAR / EDITAR PRODUCTO -->
+            <div id="view-add-product" class="view-section hidden fade-in max-w-5xl mx-auto">
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded shadow-sm text-sm text-blue-800">
+                    <i class="fas fa-info-circle mr-2"></i> Llena el formulario con precaución. El <b>SKU</b> se genera automáticamente. Los <b>costos totales y precios</b> se calculan en base a los montos y porcentajes que introduzcas.
+                </div>
+
+                <form id="product-form" onsubmit="handleProductSubmit(event)" class="bg-white rounded-xl shadow-sm border p-6 md:p-8 space-y-8">
+                    <input type="hidden" id="p-id">
+                    
+                    <!-- Sección 1: Datos Básicos -->
+                    <div>
+                        <h3 class="text-lg font-bold border-b pb-2 mb-4 text-gray-700"><i class="fas fa-tag mr-2"></i> Datos de Identificación</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de Producto *</label>
+                                <input type="text" id="p-name" required oninput="generateSKUPreview()" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Marca *</label>
+                                <input type="text" id="p-brand" required oninput="generateSKUPreview()" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Modelo *</label>
+                                <input type="text" id="p-model" required oninput="generateSKUPreview()" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Numeración/Serie *</label>
+                                <input type="text" id="p-numbering" required oninput="generateSKUPreview()" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-blue-600 mb-1">SKU Generado (Automático)</label>
+                                <input type="text" id="p-sku" readonly class="w-full border border-blue-200 bg-blue-50 text-blue-800 font-bold rounded p-2 outline-none">
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                                <textarea id="p-desc" rows="2" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección 2: Proveedor e Imagen -->
+                    <div>
+                        <h3 class="text-lg font-bold border-b pb-2 mb-4 text-gray-700"><i class="fas fa-truck mr-2"></i> Proveedor y Multimedia</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">País de Origen</label>
+                                <input type="text" id="p-country" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                                <input type="text" id="p-supplier" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Link del Producto</label>
+                                <input type="url" id="p-link" placeholder="https://" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Cargar Imagen (Local)</label>
+                                <input type="file" id="p-image-file" accept="image/*" onchange="handleImageUpload(event)" class="w-full border rounded p-1 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                <input type="hidden" id="p-image-data">
+                                <p class="text-xs text-gray-500 mt-1">La imagen se comprimirá automáticamente para no saturar el almacenamiento.</p>
+                            </div>
+                            <div class="flex items-center justify-center">
+                                <img id="p-image-preview" src="" class="hidden max-h-24 rounded border shadow-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección 3: Costos y Precios -->
+                    <div class="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                        <h3 class="text-lg font-bold border-b pb-2 mb-4 text-gray-700"><i class="fas fa-calculator mr-2"></i> Fórmulas de Costos y Precios</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Costo Base ($) *</label>
+                                <input type="number" id="c-base" step="0.01" min="0" required oninput="calculateCosts()" class="w-full border rounded p-2 bg-white focus:ring-2 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Envío</label>
+                                <select id="c-ship-type" onchange="toggleNationalization(); calculateCosts()" class="w-full border rounded p-2 bg-white focus:ring-2 focus:ring-green-500">
+                                    <option value="nacional">Nacional</option>
+                                    <option value="internacional">Internacional</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Costo de Envío ($)</label>
+                                <input type="number" id="c-ship" step="0.01" min="0" value="0" oninput="calculateCosts()" class="w-full border rounded p-2 bg-white focus:ring-2 focus:ring-green-500">
+                            </div>
+                            <div id="div-nac" class="opacity-50 pointer-events-none transition-opacity">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nacionalización ($)</label>
+                                <input type="number" id="c-nac" step="0.01" min="0" value="0" oninput="calculateCosts()" class="w-full border rounded p-2 bg-white focus:ring-2 focus:ring-green-500">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Impuestos (%)</label>
+                                <input type="number" id="c-tax-pct" step="0.01" min="0" value="0" oninput="calculateCosts()" class="w-full border rounded p-2 bg-white focus:ring-2 focus:ring-green-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Margen Ganancia (%)</label>
+                                <input type="number" id="c-margin" step="0.01" min="0" value="30" oninput="calculateCosts()" class="w-full border rounded p-2 bg-white focus:ring-2 focus:ring-green-500">
+                            </div>
+
+                            <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-red-600 mb-1">Costo Total ($)</label>
+                                    <input type="number" id="c-total" readonly class="w-full border border-red-200 bg-red-50 font-bold text-red-700 rounded p-2 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-green-600 mb-1">Precio Final ($)</label>
+                                    <input type="number" id="c-price" required step="0.01" min="0" class="w-full border border-green-400 bg-green-50 font-bold text-green-800 rounded p-2 focus:ring-2 focus:ring-green-600">
+                                    <p class="text-[10px] text-green-700 mt-1 leading-tight">Calculado automático, pero puedes editarlo manualmente si lo deseas.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección 4: Stock Inicial -->
+                    <div id="stock-initial-container">
+                        <h3 class="text-lg font-bold border-b pb-2 mb-4 text-gray-700"><i class="fas fa-boxes mr-2"></i> Inventario Inicial</h3>
+                        <div class="w-1/3">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Stock de entrada al registrar</label>
+                            <input type="number" id="p-initial-stock" min="0" value="0" required class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- Botones -->
+                    <div class="pt-4 border-t flex justify-end gap-3">
+                        <button type="button" onclick="navigate('stock')" class="px-5 py-2 border rounded-lg hover:bg-gray-50 font-medium">Cancelar</button>
+                        <button type="submit" class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md">
+                            <i class="fas fa-save mr-2"></i> <span id="btn-save-text">Guardar Producto</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- VISTA: MOVIMIENTOS -->
+            <div id="view-movements" class="view-section hidden fade-in">
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded shadow-sm text-sm text-blue-800 flex justify-between items-center">
+                    <div>
+                        <i class="fas fa-info-circle mr-2"></i> <b>Registro de Entradas y Salidas.</b> Aquí puedes ver el historial completo y editar registros si cometiste algún error.
+                    </div>
+                    <button onclick="openMovementModal()" class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 whitespace-nowrap">
+                        <i class="fas fa-plus"></i> Nuevo Movimiento
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <div class="p-4 border-b">
+                        <input type="text" id="search-movements" onkeyup="renderMovements()" placeholder="Buscar por producto, motivo o fecha..." class="w-full md:w-1/3 pl-4 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="bg-gray-50 text-gray-600">
+                                <tr>
+                                    <th class="px-6 py-3 font-semibold">Fecha</th>
+                                    <th class="px-6 py-3 font-semibold">Tipo</th>
+                                    <th class="px-6 py-3 font-semibold">Producto</th>
+                                    <th class="px-6 py-3 font-semibold text-center">Cantidad</th>
+                                    <th class="px-6 py-3 font-semibold">Motivo / Notas</th>
+                                    <th class="px-6 py-3 font-semibold text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="movements-table-body" class="divide-y divide-gray-100">
+                                <!-- Filas JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="movements-empty" class="hidden p-10 text-center text-gray-500">
+                        <i class="fas fa-clipboard-list text-4xl mb-3 text-gray-300"></i>
+                        <p>No hay movimientos registrados.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MODAL DE MOVIMIENTOS (ENTRADAS/SALIDAS) -->
+    <div id="modal-movement" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden fade-in">
+            <div class="bg-slate-800 p-4 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg" id="modal-mov-title">Registrar Movimiento</h3>
+                <button onclick="closeMovementModal()" class="text-gray-300 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="handleMovementSubmit(event)" class="p-6 space-y-4">
+                <input type="hidden" id="m-id">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Producto *</label>
+                    <select id="m-product" required class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 bg-white">
+                        <!-- Opciones generadas por JS -->
+                    </select>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
+                        <select id="m-type" required class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 bg-white" onchange="updateMovementColors()">
+                            <option value="in">Entrada (+)</option>
+                            <option value="out">Salida (-)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad *</label>
+                        <input type="number" id="m-qty" min="1" required class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
+                    <input type="date" id="m-date" required class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Motivo / Descripción</label>
+                    <input type="text" id="m-note" placeholder="Ej. Compra a proveedor, Venta cliente..." class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3 border-t mt-6">
+                    <button type="button" onclick="closeMovementModal()" class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">Cancelar</button>
+                    <button type="submit" id="btn-save-mov" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT: LÓGICA DE LA APP -->
+    <script>
+        // ESTADO GLOBAL DE LA APP
+        let db = {
+            products: [],
+            movements: []
+        };
+
+        // INICIALIZACIÓN
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            navigate('stock');
+            document.getElementById('m-date').valueAsDate = new Date(); // Fecha actual en modal
+        });
+
+        // ================= DATOS Y ALMACENAMIENTO =================
+        function loadData() {
+            const stored = localStorage.getItem('inventory_pro_data');
+            if (stored) {
+                try {
+                    db = JSON.parse(stored);
+                } catch (e) {
+                    console.error("Error leyendo datos", e);
+                }
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('inventory_pro_data', JSON.stringify(db));
+        }
+
+        function calculateCurrentStock(productId) {
+            const product = db.products.find(p => p.id === productId);
+            if (!product) return 0;
+            
+            let stock = parseInt(product.initialStock) || 0;
+            
+            db.movements.forEach(m => {
+                if (m.productId === productId) {
+                    if (m.type === 'in') stock += parseInt(m.qty);
+                    if (m.type === 'out') stock -= parseInt(m.qty);
+                }
+            });
+            return stock;
+        }
+
+        // ================= NAVEGACIÓN Y UI =================
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = message;
+            
+            if (isError) {
+                toast.classList.replace('bg-green-500', 'bg-red-500');
+                toast.querySelector('i').classList.replace('fa-check-circle', 'fa-times-circle');
+            } else {
+                toast.classList.replace('bg-red-500', 'bg-green-500');
+                toast.querySelector('i').classList.replace('fa-times-circle', 'fa-check-circle');
+            }
+
+            toast.classList.remove('translate-x-full', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+            }, 3000);
+        }
+
+        const titles = {
+            'stock': 'Inventario de Productos',
+            'add-product': 'Gestión de Producto',
+            'movements': 'Entradas y Salidas'
+        };
+
+        function navigate(viewId) {
+            // Ocultar todas las vistas
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            // Resetear botones sidebar
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('bg-blue-600', 'text-white');
+                el.classList.add('hover:bg-slate-800', 'text-slate-300');
+            });
+
+            // Mostrar vista seleccionada
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+            
+            // Activar botón
+            const activeBtn = document.getElementById(`nav-${viewId}`);
+            if(activeBtn){
+                activeBtn.classList.add('bg-blue-600', 'text-white');
+                activeBtn.classList.remove('hover:bg-slate-800', 'text-slate-300');
+            }
+
+            // Cambiar título
+            document.getElementById('view-title').innerText = titles[viewId] || 'Panel';
+
+            // Cerrar sidebar en móvil si está abierto
+            if(window.innerWidth < 768 && !document.getElementById('sidebar').classList.contains('-translate-x-full')) {
+                toggleSidebar();
+            }
+
+            // Lógica específica por vista
+            if(viewId === 'stock') renderStock();
+            if(viewId === 'movements') renderMovements();
+            if(viewId === 'add-product' && !document.getElementById('p-id').value) {
+                // Si entra a "Agregar" y no hay ID (no está editando), limpiar form
+                resetProductForm();
+            }
+        }
+
+        // ================= LÓGICA DE PRODUCTOS =================
+        function makeSKUPart(str) {
+            if(!str) return 'XXX';
+            // Tomar 3 letras, quitar espacios/símbolos, rellenar con X si es muy corto
+            return str.replace(/[^a-zA-Z0-9]/g, '').padEnd(3, 'X').substring(0, 3).toUpperCase();
+        }
+
+        function generateSKUPreview() {
+            const name = document.getElementById('p-name').value;
+            const brand = document.getElementById('p-brand').value;
+            const model = document.getElementById('p-model').value;
+            const num = document.getElementById('p-numbering').value;
+            
+            if(name || brand || model || num) {
+                const sku = `${makeSKUPart(name)}-${makeSKUPart(brand)}-${makeSKUPart(model)}-${num.toUpperCase()}`;
+                document.getElementById('p-sku').value = sku;
+            } else {
+                document.getElementById('p-sku').value = '';
+            }
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            
+            // Comprimir imagen usando Canvas para evitar desbordar LocalStorage
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 400;
+                    let scale = 1;
+                    if(img.width > MAX_WIDTH) scale = MAX_WIDTH / img.width;
+                    
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // 70% calidad
+                    
+                    document.getElementById('p-image-preview').src = dataUrl;
+                    document.getElementById('p-image-preview').classList.remove('hidden');
+                    document.getElementById('p-image-data').value = dataUrl;
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function toggleNationalization() {
+            const type = document.getElementById('c-ship-type').value;
+            const divNac = document.getElementById('div-nac');
+            const inputNac = document.getElementById('c-nac');
+            
+            if(type === 'internacional') {
+                divNac.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                divNac.classList.add('opacity-50', 'pointer-events-none');
+                inputNac.value = 0;
+            }
+        }
+
+        function calculateCosts() {
+            const base = parseFloat(document.getElementById('c-base').value) || 0;
+            const shipType = document.getElementById('c-ship-type').value;
+            const ship = parseFloat(document.getElementById('c-ship').value) || 0;
+            const nac = shipType === 'internacional' ? (parseFloat(document.getElementById('c-nac').value) || 0) : 0;
+            const taxPct = parseFloat(document.getElementById('c-tax-pct').value) || 0;
+            const marginPct = parseFloat(document.getElementById('c-margin').value) || 0;
+
+            // Subtotal = Base + Envio + Nacionalización
+            const subtotal = base + ship + nac;
+            // Impuesto sobre el subtotal
+            const taxAmount = subtotal * (taxPct / 100);
+            // Costo Total
+            const totalCost = subtotal + taxAmount;
+            // Precio Sugerido (Costo Total + Margen)
+            const suggestedPrice = totalCost * (1 + marginPct / 100);
+
+            document.getElementById('c-total').value = totalCost.toFixed(2);
+            
+            // Si el usuario no ha tocado el precio manualmente o estamos actualizando dinámicamente
+            // Actualizamos el precio final.
+            document.getElementById('c-price').value = suggestedPrice.toFixed(2);
+        }
+
+        function resetProductForm() {
+            document.getElementById('product-form').reset();
+            document.getElementById('p-id').value = '';
+            document.getElementById('p-sku').value = '';
+            document.getElementById('p-image-preview').src = '';
+            document.getElementById('p-image-preview').classList.add('hidden');
+            document.getElementById('p-image-data').value = '';
+            document.getElementById('stock-initial-container').style.display = 'block';
+            document.getElementById('btn-save-text').innerText = 'Guardar Producto';
+            toggleNationalization();
+        }
+
+        function handleProductSubmit(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('p-id').value || Date.now().toString();
+            const isNew = !document.getElementById('p-id').value;
+
+            const product = {
+                id: id,
+                name: document.getElementById('p-name').value,
+                brand: document.getElementById('p-brand').value,
+                model: document.getElementById('p-model').value,
+                numbering: document.getElementById('p-numbering').value,
+                sku: document.getElementById('p-sku').value,
+                desc: document.getElementById('p-desc').value,
+                country: document.getElementById('p-country').value,
+                supplier: document.getElementById('p-supplier').value,
+                link: document.getElementById('p-link').value,
+                image: document.getElementById('p-image-data').value,
+                
+                // Costos
+                costBase: parseFloat(document.getElementById('c-base').value) || 0,
+                shipType: document.getElementById('c-ship-type').value,
+                costShip: parseFloat(document.getElementById('c-ship').value) || 0,
+                costNac: parseFloat(document.getElementById('c-nac').value) || 0,
+                taxPct: parseFloat(document.getElementById('c-tax-pct').value) || 0,
+                marginPct: parseFloat(document.getElementById('c-margin').value) || 0,
+                costTotal: parseFloat(document.getElementById('c-total').value) || 0,
+                price: parseFloat(document.getElementById('c-price').value) || 0,
+            };
+
+            if (isNew) {
+                product.initialStock = parseInt(document.getElementById('p-initial-stock').value) || 0;
+                db.products.push(product);
+                showToast("Producto creado exitosamente");
+            } else {
+                // Conservar el stock inicial original
+                const existing = db.products.find(p => p.id === id);
+                product.initialStock = existing ? existing.initialStock : 0;
+                
+                const index = db.products.findIndex(p => p.id === id);
+                if(index !== -1) db.products[index] = product;
+                showToast("Producto actualizado");
+            }
+
+            saveData();
+            navigate('stock');
+            resetProductForm();
+        }
+
+        function editProduct(id) {
+            const product = db.products.find(p => p.id === id);
+            if(!product) return;
+
+            document.getElementById('p-id').value = product.id;
+            document.getElementById('p-name').value = product.name;
+            document.getElementById('p-brand').value = product.brand;
+            document.getElementById('p-model').value = product.model;
+            document.getElementById('p-numbering').value = product.numbering;
+            document.getElementById('p-sku').value = product.sku;
+            document.getElementById('p-desc').value = product.desc;
+            document.getElementById('p-country').value = product.country || '';
+            document.getElementById('p-supplier').value = product.supplier || '';
+            document.getElementById('p-link').value = product.link || '';
+            
+            if(product.image) {
+                document.getElementById('p-image-data').value = product.image;
+                document.getElementById('p-image-preview').src = product.image;
+                document.getElementById('p-image-preview').classList.remove('hidden');
+            } else {
+                document.getElementById('p-image-data').value = '';
+                document.getElementById('p-image-preview').src = '';
+                document.getElementById('p-image-preview').classList.add('hidden');
+            }
+
+            document.getElementById('c-base').value = product.costBase;
+            document.getElementById('c-ship-type').value = product.shipType;
+            document.getElementById('c-ship').value = product.costShip;
+            document.getElementById('c-nac').value = product.costNac;
+            document.getElementById('c-tax-pct').value = product.taxPct;
+            document.getElementById('c-margin').value = product.marginPct;
+            document.getElementById('c-total').value = product.costTotal;
+            document.getElementById('c-price').value = product.price;
+
+            // Ocultar input de stock inicial al editar
+            document.getElementById('stock-initial-container').style.display = 'none';
+            document.getElementById('btn-save-text').innerText = 'Actualizar Producto';
+
+            toggleNationalization();
+            navigate('add-product');
+        }
+
+        function deleteProduct(id) {
+            if(confirm("¿Estás seguro de eliminar este producto? Se borrarán también sus movimientos.")) {
+                db.products = db.products.filter(p => p.id !== id);
+                db.movements = db.movements.filter(m => m.productId !== id);
+                saveData();
+                renderStock();
+                showToast("Producto eliminado", true);
+            }
+        }
+
+        // ================= RENDERIZADO DE TABLAS =================
+        function formatMoney(amount) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+        }
+
+        function renderStock() {
+            const tbody = document.getElementById('stock-table-body');
+            const term = document.getElementById('search-stock').value.toLowerCase();
+            tbody.innerHTML = '';
+            
+            let filtered = db.products.filter(p => 
+                p.sku.toLowerCase().includes(term) || 
+                p.name.toLowerCase().includes(term) || 
+                p.brand.toLowerCase().includes(term)
+            );
+
+            if(filtered.length === 0) {
+                document.getElementById('stock-empty').classList.remove('hidden');
+            } else {
+                document.getElementById('stock-empty').classList.add('hidden');
+            }
+
+            filtered.forEach(p => {
+                const currentStock = calculateCurrentStock(p.id);
+                let stockColor = currentStock <= 5 ? 'text-red-600 font-bold' : 'text-green-600 font-bold';
+                
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                            ${p.image ? `<img src="${p.image}" class="w-10 h-10 object-cover rounded shadow-sm border">` : `<div class="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400"><i class="fas fa-image"></i></div>`}
+                            <div>
+                                <div class="font-bold text-gray-800">${p.name}</div>
+                                <div class="text-xs text-gray-500">${p.sku} | ${p.brand}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="bg-gray-100 px-3 py-1 rounded-full ${stockColor}">${currentStock}</span>
+                    </td>
+                    <td class="px-6 py-4 font-medium text-gray-600">${formatMoney(p.costTotal)}</td>
+                    <td class="px-6 py-4 font-bold text-blue-700">${formatMoney(p.price)}</td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex justify-center gap-2">
+                            <button onclick="openMovementModal('${p.id}', 'in')" title="Entrada rápida" class="text-green-500 hover:text-green-700 bg-green-50 w-8 h-8 rounded-full"><i class="fas fa-arrow-down"></i></button>
+                            <button onclick="openMovementModal('${p.id}', 'out')" title="Salida rápida" class="text-orange-500 hover:text-orange-700 bg-orange-50 w-8 h-8 rounded-full"><i class="fas fa-arrow-up"></i></button>
+                            <button onclick="editProduct('${p.id}')" title="Editar Producto" class="text-blue-500 hover:text-blue-700 bg-blue-50 w-8 h-8 rounded-full"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteProduct('${p.id}')" title="Eliminar" class="text-red-500 hover:text-red-700 bg-red-50 w-8 h-8 rounded-full"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ================= LÓGICA DE MOVIMIENTOS =================
+        function updateMovementColors() {
+            const type = document.getElementById('m-type').value;
+            const btn = document.getElementById('btn-save-mov');
+            if(type === 'in') {
+                btn.className = "px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700";
+            } else {
+                btn.className = "px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700";
+            }
+        }
+
+        function openMovementModal(productId = '', type = 'in', movementId = null) {
+            const select = document.getElementById('m-product');
+            select.innerHTML = '<option value="">Seleccione un producto...</option>';
+            
+            db.products.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.text = `${p.sku} - ${p.name}`;
+                select.appendChild(opt);
+            });
+
+            const modal = document.getElementById('modal-movement');
+            const form = modal.querySelector('form');
+            form.reset();
+            document.getElementById('m-date').valueAsDate = new Date();
+
+            if (movementId) {
+                // Editando movimiento
+                const m = db.movements.find(x => x.id === movementId);
+                if(m) {
+                    document.getElementById('m-id').value = m.id;
+                    document.getElementById('m-product').value = m.productId;
+                    document.getElementById('m-type').value = m.type;
+                    document.getElementById('m-qty').value = m.qty;
+                    document.getElementById('m-date').value = m.date;
+                    document.getElementById('m-note').value = m.note;
+                    document.getElementById('modal-mov-title').innerText = "Editar Movimiento";
+                }
+            } else {
+                // Nuevo
+                document.getElementById('m-id').value = '';
+                if(productId) document.getElementById('m-product').value = productId;
+                document.getElementById('m-type').value = type;
+                document.getElementById('modal-mov-title').innerText = "Registrar Movimiento";
+            }
+
+            updateMovementColors();
+            modal.classList.remove('hidden');
+        }
+
+        function closeMovementModal() {
+            document.getElementById('modal-movement').classList.add('hidden');
+        }
+
+        function handleMovementSubmit(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('m-id').value || Date.now().toString();
+            const isNew = !document.getElementById('m-id').value;
+
+            const movement = {
+                id: id,
+                productId: document.getElementById('m-product').value,
+                type: document.getElementById('m-type').value,
+                qty: parseInt(document.getElementById('m-qty').value),
+                date: document.getElementById('m-date').value,
+                note: document.getElementById('m-note').value
+            };
+
+            if (isNew) {
+                db.movements.push(movement);
+                showToast("Movimiento registrado");
+            } else {
+                const index = db.movements.findIndex(m => m.id === id);
+                if(index !== -1) db.movements[index] = movement;
+                showToast("Movimiento actualizado");
+            }
+
+            saveData();
+            closeMovementModal();
+            
+            // Actualizar vista actual
+            if(!document.getElementById('view-stock').classList.contains('hidden')) renderStock();
+            if(!document.getElementById('view-movements').classList.contains('hidden')) renderMovements();
+        }
+
+        function deleteMovement(id) {
+            if(confirm("¿Eliminar este registro? Esto afectará el stock calculado del producto.")) {
+                db.movements = db.movements.filter(m => m.id !== id);
+                saveData();
+                renderMovements();
+                showToast("Registro eliminado", true);
+            }
+        }
+
+        function renderMovements() {
+            const tbody = document.getElementById('movements-table-body');
+            const term = document.getElementById('search-movements').value.toLowerCase();
+            tbody.innerHTML = '';
+            
+            // Ordenar por fecha descendente
+            let sorted = [...db.movements].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            let filtered = sorted.filter(m => {
+                const prod = db.products.find(p => p.id === m.productId);
+                const prodName = prod ? prod.name.toLowerCase() : '';
+                return prodName.includes(term) || m.note.toLowerCase().includes(term) || m.date.includes(term);
+            });
+
+            if(filtered.length === 0) {
+                document.getElementById('movements-empty').classList.remove('hidden');
+            } else {
+                document.getElementById('movements-empty').classList.add('hidden');
+            }
+
+            filtered.forEach(m => {
+                const prod = db.products.find(p => p.id === m.productId);
+                const prodName = prod ? `${prod.sku} | ${prod.name}` : 'Producto Eliminado';
+                
+                const typeStyle = m.type === 'in' 
+                    ? '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold"><i class="fas fa-arrow-down"></i> Entrada</span>'
+                    : '<span class="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-bold"><i class="fas fa-arrow-up"></i> Salida</span>';
+                
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50";
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-gray-600">${m.date}</td>
+                    <td class="px-6 py-4">${typeStyle}</td>
+                    <td class="px-6 py-4 font-medium">${prodName}</td>
+                    <td class="px-6 py-4 text-center font-bold">${m.qty}</td>
+                    <td class="px-6 py-4 text-gray-500">${m.note || '-'}</td>
+                    <td class="px-6 py-4 text-center">
+                        <button onclick="openMovementModal('', '', '${m.id}')" title="Editar" class="text-blue-500 hover:text-blue-700 mx-1"><i class="fas fa-edit"></i></button>
+                        <button onclick="deleteMovement('${m.id}')" title="Eliminar" class="text-red-500 hover:text-red-700 mx-1"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
